@@ -1,0 +1,86 @@
+name: Fuzz parser
+
+on:
+  workflow_call:
+    inputs:
+      language:
+        type: string
+      directory:
+        type: string
+        default: .
+      timeout:
+        type: number
+        default: 10
+      time:
+        type: number
+        default: 60
+
+jobs:
+  fuzz:
+    name: Parser fuzzing
+    runs-on: ubuntu-latest
+    env:
+      FUZZER_DIR: ${{runner.temp}}/fuzzer
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install tree-sitter
+        run: |-
+          git clone --depth=1 https://github.com/tree-sitter/tree-sitter '${{runner.temp}}/tree-sitter'
+          cd '${{runner.temp}}/tree-sitter' && make && sudo make PREFIX=/usr install
+      - name: Fuzz parser
+        run: |-
+          JQ_FILTER='.. | select((.type? == "STRING" or (.type? == "ALIAS" and .named? == false)) and .value? != "") | .value'
+          [[ -n $LANG_NAME ]] || LANG_NAME="${GITHUB_REPOSITORY##*/tree-sitter-}"
+
+          mkdir -p "$FUZZER_DIR"/{out,artifacts}
+
+          # build fuzzer
+          clang -fsanitize=fuzzer,address,undefined -O0 -g -Wall -xc \
+            -I"$LANG_DIR/src" $(pkg-config --cflags --libs tree-sitter) \
+            - "$LANG_DIR/src/scanner.c" "$LANG_DIR/src/parser.c" -o "$FUZZER_DIR/fuzzer" <<END
+          #include <tree_sitter/api.h>
+
+          TSLanguage *tree_sitter_$LANG_NAME();
+
+          int LLVMFuzzerTestOneInput(const uint8_t * data, const size_t len) {
+            // Create a parser.
+            TSParser *parser = ts_parser_new();
+
+            // Set the parser's language.
+            ts_parser_set_language(parser, tree_sitter_$LANG_NAME());
+
+            // Build a syntax tree based on source code stored in a string.
+            TSTree *tree = ts_parser_parse_string(
+              parser,
+              NULL,
+              (const char *)data,
+              len
+            );
+            // Free all of the heap-allocated memory.
+            ts_tree_delete(tree);
+            ts_parser_delete(parser);
+            return 0;
+          }
+          END
+
+          # build dict
+          jq "$JQ_FILTER" "$LANG_DIR/src/grammar.json" | grep -v '\\' | \
+            iconv -c -f UTF-8 -t ASCII//TRANSLIT > "$FUZZER_DIR/dict"
+
+          "$FUZZER_DIR/fuzzer" -dict="$FUZZER_DIR/dict" \
+            -timeout="$TIMEOUT" -max_total_time="$MAX_TOTAL_TIME" \
+            -artifact_prefix="$FUZZER_DIR/artifacts/" "$FUZZER_DIR/out"
+        env:
+          LANG_NAME: ${{inputs.language}}
+          LANG_DIR: ${{inputs.directory}}
+          TIMEOUT: ${{inputs.timeout}}
+          MAX_TOTAL_TIME: ${{inputs.time}}
+      - name: Upload fuzzer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzzer-artifacts
+          path: ${{env.FUZZER_DIR}}/artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+          overwrite: true
