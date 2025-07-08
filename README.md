@@ -17,5 +17,5 @@ tree as the source file is edited. Tree-sitter aims to be:
 - [Documentation](https://tree-sitter.github.io)
 - [Rust binding](https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_rust)
 - [WASM binding](https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web)
-- [Command-line interface](https://github.com/tree-sitter/tree-sitter/blob/master/cli)
+- [Command-line interface](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli)
 - [Community-maintained grammars](https://github.com/tree-sitter-grammars)
