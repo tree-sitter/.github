@@ -1,0 +1,5 @@
+{
+  "name": "Check account age",
+  "description": "Auto-close issues/PRs from accounts less than 30 days old.",
+  "categories": ["moderation"]
+}
