@@ -1,0 +1,13 @@
+name: Check account age
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+jobs:
+  check:
+    uses: tree-sitter/.github/.github/workflows/check-account-age.yml@master
+    with:
+      min-age-days: 30

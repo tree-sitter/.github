@@ -1,0 +1,34 @@
+name: Check account age
+
+on:
+  workflow_call:
+    inputs:
+      min-age-days:
+        description: Minimum account age in days
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout script
+        uses: actions/checkout@v6
+        with:
+          repository: tree-sitter/.github
+          sparse-checkout: .github/scripts/check_account_age.js
+          sparse-checkout-cone-mode: false
+
+      - name: Check account age
+        uses: actions/github-script@v8
+        env:
+          MIN_AGE_DAYS: ${{ inputs.min-age-days }}
+        with:
+          script: |
+            const script = require('./.github/scripts/check_account_age.js')
+            await script({github, context})
